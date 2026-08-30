@@ -8,6 +8,8 @@ using DOM Parsing (v1), Gemini Multimodal Vision AI (v2), and Local CPU OCR (v3)
 
 import asyncio
 import logging
+import os
+import secrets
 import sys
 import subprocess
 from contextlib import asynccontextmanager
@@ -51,7 +53,7 @@ def ensure_dependencies():
 
 ensure_dependencies()
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from pydantic import BaseModel, HttpUrl
 from dotenv import load_dotenv
 
@@ -140,6 +142,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+API_KEY = os.getenv("API_KEY")
+
+
+async def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")):
+    """Require an application API key for public scraping routes."""
+    if not API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API_KEY is not configured on the server.",
+        )
+    if not x_api_key or not secrets.compare_digest(x_api_key, API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="A valid X-API-Key header is required.",
+        )
+
 
 class ScrapeRequest(BaseModel):
     url: str
@@ -163,7 +181,8 @@ async def health_check():
 
 @app.get("/api/profileinfo")
 async def get_profile_info(
-    profileUrl: str = Query(..., description="LinkedIn profile URL to scrape via DOM (v1)")
+    profileUrl: str = Query(..., description="LinkedIn profile URL to scrape via DOM (v1)"),
+    _api_key: None = Depends(require_api_key),
 ):
     """
     Scrape a LinkedIn person profile by URL using standard DOM parsing (v1).
@@ -179,7 +198,8 @@ async def get_profile_info_vision(
     profileUrl: str = Query(..., description="LinkedIn profile URL to scrape via Gemini Vision (v2)"),
     geminiApiKey: Optional[str] = Query(None, description="Gemini API Key (optional if GEMINI_API_KEY env var is set)"),
     model: Optional[str] = Query(None, description="Gemini model name (e.g. gemini-3.6-flash)"),
-    saveScreenshots: bool = Query(True, description="Save debug screenshot files to debug_screenshots/ folder")
+    saveScreenshots: bool = Query(False, description="Save debug screenshot files to debug_screenshots/ folder"),
+    _api_key: None = Depends(require_api_key),
 ):
     """
     Scrape a LinkedIn person profile by URL using Gemini Multimodal Vision API (v2) & in-memory browser screenshots.
@@ -190,17 +210,21 @@ async def get_profile_info_vision(
 
 
 @app.post("/api/v2/profileinfo")
-async def post_profile_info_vision(req: VisionScrapeRequest):
+async def post_profile_info_vision(
+    req: VisionScrapeRequest,
+    _api_key: None = Depends(require_api_key),
+):
     """
     POST endpoint to scrape a profile using Gemini Vision (v2).
     """
-    return await _scrape_profile_vision(req.url, gemini_api_key=req.gemini_api_key, model=req.model, save_screenshots=bool(req.save_screenshots))
+    return await _scrape_profile_vision(req.url, gemini_api_key=req.gemini_api_key, model=req.model, save_screenshots=bool(req.save_screenshots or False))
 
 
 @app.get("/api/v3/profileinfo")
 @app.get("/api/profileinfo_ocr")
 async def get_profile_info_ocr(
-    profileUrl: str = Query(..., description="LinkedIn profile URL to scrape via 100% Local CPU OCR (v3)")
+    profileUrl: str = Query(..., description="LinkedIn profile URL to scrape via 100% Local CPU OCR (v3)"),
+    _api_key: None = Depends(require_api_key),
 ):
     """
     Scrape a LinkedIn person profile using 100% Local CPU OCR (RapidOCR/ONNX) on in-memory screenshots (v3).
