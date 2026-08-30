@@ -10,4 +10,6 @@ debug_screenshots/*.png
 .pytest_cache/
 .git/
 .gitignore
+.env
+linkedin_session.json
 tests/
