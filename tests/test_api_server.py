@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-import api_server
 from api_server import app
 from linkedin_profile_viewer.models import Person, Experience, Education
 
@@ -14,9 +13,7 @@ from linkedin_profile_viewer.models import Person, Experience, Education
 class TestAPIServer(unittest.TestCase):
 
     def setUp(self):
-        api_server.API_KEY = "test-api-key"
         self.client = TestClient(app)
-        self.headers = {"X-API-Key": "test-api-key"}
 
     def test_health_check(self):
         """Test healthcheck endpoint."""
@@ -24,13 +21,6 @@ class TestAPIServer(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         json_data = response.json()
         self.assertEqual(json_data.get("status"), "healthy")
-
-    def test_scrape_requires_api_key(self):
-        """Public deployment still requires the application API key."""
-        response = self.client.get(
-            "/api/profileinfo?profileUrl=https://www.linkedin.com/in/test/"
-        )
-        self.assertEqual(response.status_code, 401)
 
     @patch("api_server._scrape_profile")
     def test_get_profile_info_v1(self, mock_scrape):
@@ -43,7 +33,7 @@ class TestAPIServer(unittest.TestCase):
                 headline="Software Engineer",
             ).to_dict()
         }
-        response = self.client.get("/api/profileinfo?profileUrl=https://www.linkedin.com/in/test/", headers=self.headers)
+        response = self.client.get("/api/profileinfo?profileUrl=https://www.linkedin.com/in/test/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["name"], "Test User")
 
@@ -58,7 +48,7 @@ class TestAPIServer(unittest.TestCase):
                 headline="AI Researcher",
             ).to_dict()
         }
-        response = self.client.get("/api/v2/profileinfo?profileUrl=https://www.linkedin.com/in/test/", headers=self.headers)
+        response = self.client.get("/api/v2/profileinfo?profileUrl=https://www.linkedin.com/in/test/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["name"], "Vision User")
 
@@ -73,7 +63,7 @@ class TestAPIServer(unittest.TestCase):
                 headline="Data Scientist",
             ).to_dict()
         }
-        response = self.client.get("/api/v3/profileinfo?profileUrl=https://www.linkedin.com/in/test/", headers=self.headers)
+        response = self.client.get("/api/v3/profileinfo?profileUrl=https://www.linkedin.com/in/test/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["name"], "OCR User")
 

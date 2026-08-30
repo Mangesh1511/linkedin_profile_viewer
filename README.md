@@ -73,9 +73,6 @@ Edit your `.env` file:
 LINKEDIN_EMAIL=your_email@example.com
 LINKEDIN_PASSWORD=your_password_here
 
-# Required for public scraping endpoints; clients send this as X-API-Key
-API_KEY=replace_with_a_long_random_value
-
 # Google Gemini API Key (Required for v2 Vision API)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.6-flash
@@ -121,7 +118,6 @@ GET /health
 ### 2. v1 DOM Scraper
 ```http
 GET /api/profileinfo?profileUrl=https://www.linkedin.com/in/williamhgates/
-X-API-Key: replace_with_a_long_random_value
 ```
 
 ---
@@ -129,7 +125,6 @@ X-API-Key: replace_with_a_long_random_value
 ### 3. v2 Gemini Vision AI Scraper
 ```http
 GET /api/v2/profileinfo?profileUrl=https://www.linkedin.com/in/williamhgates/&model=gemini-3.6-flash
-X-API-Key: replace_with_a_long_random_value
 ```
 
 **POST Variant**:
@@ -149,7 +144,6 @@ Content-Type: application/json
 ### 4. v3 100% Local CPU OCR Scraper (No Gemini API Needed!)
 ```http
 GET /api/v3/profileinfo?profileUrl=https://www.linkedin.com/in/williamhgates/
-X-API-Key: replace_with_a_long_random_value
 ```
 
 ---
