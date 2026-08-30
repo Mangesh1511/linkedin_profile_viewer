@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+api_server.log
+debug_screenshots/*.jpg
+debug_screenshots/*.png
+.pytest_cache/
+.git/
+.gitignore
+tests/

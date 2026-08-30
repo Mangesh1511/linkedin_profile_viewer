@@ -1,0 +1,16 @@
+# Environment & Secret files
+.env
+linkedin_session.json
+
+# Virtual Environment & Python cache
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs & Screenshots
+*.log
+api_server.log
+debug_screenshots/
+.pytest_cache/
