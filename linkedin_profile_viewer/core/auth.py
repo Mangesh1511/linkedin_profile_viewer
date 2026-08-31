@@ -27,8 +27,10 @@ async def warm_up_browser(page: Page) -> None:
     for site in sites:
         try:
             await page.goto(site, wait_until='domcontentloaded', timeout=10000)
+            logger.info("Warm-up navigation succeeded: %s (final_url=%s)", site, page.url)
             await asyncio.sleep(0.5)
-        except Exception:
+        except Exception as e:
+            logger.warning("Warm-up navigation failed: %s (%s)", site, e)
             continue
     logger.info("Browser warm-up complete.")
 
@@ -87,6 +89,7 @@ async def login_with_credentials(
     
     try:
         await page.goto('https://www.linkedin.com/login', wait_until='domcontentloaded')
+        logger.info("LinkedIn login page loaded (url=%s, title=%s)", page.url, await page.title())
         await detect_rate_limit(page)
         
         user_selector = "input[type='email']:visible, input[type='text']:visible, #username:visible, #session_key:visible"
@@ -95,6 +98,7 @@ async def login_with_credentials(
         try:
             await page.wait_for_selector(user_selector, timeout=timeout, state='visible')
         except PlaywrightTimeoutError:
+            logger.error("LinkedIn login form was not found (url=%s, title=%s)", page.url, await page.title())
             raise AuthenticationError(
                 "Login form not found. LinkedIn may have changed their login page structure."
             )
@@ -109,6 +113,7 @@ async def login_with_credentials(
         
         logger.debug("Credentials entered via human typing. Submitting form...")
         await pass_el.press("Enter")
+        logger.info("Login form submitted; waiting for LinkedIn navigation")
         
         try:
             await page.wait_for_url(
@@ -120,7 +125,9 @@ async def login_with_credentials(
                 raise AuthenticationError("Login failed. Please check credentials in .env file.")
         
         current_url = page.url
+        logger.info("Post-login navigation completed (url=%s)", current_url)
         if 'checkpoint' in current_url or 'challenge' in current_url:
+            logger.error("LinkedIn security checkpoint/challenge detected (url=%s)", current_url)
             raise AuthenticationError(
                 f"LinkedIn security checkpoint triggered: {current_url}. Run `python create_session.py` to authenticate manually."
             )
@@ -131,12 +138,18 @@ async def login_with_credentials(
                 logger.info("✓ Successfully logged in to LinkedIn")
                 return
             await asyncio.sleep(0.5)
+
+        logger.error("Login flow completed without confirming an authenticated LinkedIn page (url=%s)", page.url)
+        raise AuthenticationError(
+            f"LinkedIn login was not confirmed after submission. Final URL: {page.url}"
+        )
             
     except PlaywrightTimeoutError as e:
         raise AuthenticationError(f"Login timed out: {e}")
     except Exception as e:
         if isinstance(e, AuthenticationError):
             raise
+        logger.exception("Unexpected exception during LinkedIn login (url=%s)", page.url)
         raise AuthenticationError(f"Unexpected error during login: {e}")
 
 

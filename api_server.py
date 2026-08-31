@@ -10,6 +10,7 @@ import asyncio
 import logging
 import sys
 import subprocess
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 from pathlib import Path
@@ -95,34 +96,70 @@ from linkedin_profile_viewer.core.auth import load_credentials_from_env, login_w
 async def lifespan(app: FastAPI):
     """Manage browser lifecycle during application startup and shutdown."""
     global browser_manager
-    session_path = Path(SESSION_FILE)
+    session_path = Path(SESSION_FILE).resolve()
 
-    logger.info("Initializing Playwright BrowserManager for API server...")
+    logger.info(
+        "Initializing Playwright BrowserManager for API server "
+        "(cwd=%s, session_path=%s, session_exists=%s)",
+        os.getcwd(),
+        session_path,
+        session_path.exists(),
+    )
     browser_manager = BrowserManager(headless=True)
     await browser_manager.start()
+    logger.info(
+        "Browser startup complete (browser_active=%s, context_active=%s)",
+        browser_manager._browser is not None,
+        browser_manager.context is not None,
+    )
 
     if session_path.exists():
-        await browser_manager.load_session(SESSION_FILE)
-        logger.info("✓ Session loaded successfully into browser manager context")
+        logger.info(
+            "Found session file (size_bytes=%s, modified=%s); attempting to load it",
+            session_path.stat().st_size,
+            session_path.stat().st_mtime,
+        )
+        loaded = await browser_manager.load_session(str(session_path))
+        logger.info("Session load result: success=%s", loaded)
     else:
         email, password = load_credentials_from_env()
+        logger.info(
+            "Session file is absent; credentials available: email=%s, password=%s",
+            bool(email),
+            bool(password),
+        )
         if email and password:
-            logger.info(f"🔑 'linkedin_session.json' not found. Performing automated login for {email}...")
+            logger.info(
+                "Starting automated LinkedIn login (email=%s, password_present=%s)",
+                email,
+                bool(password),
+            )
             try:
                 page = await browser_manager.context.new_page()
+                logger.info("Login page created; beginning login flow")
                 await login_with_credentials(page, email=email, password=password, warm_up=True)
+                logger.info("Login flow returned successfully; saving browser session")
                 await browser_manager.save_session(SESSION_FILE)
                 await page.close()
-                logger.info(f"✓ Created and saved new '{SESSION_FILE}'")
+                logger.info(
+                    "Created and saved new session file (exists=%s, size_bytes=%s)",
+                    session_path.exists(),
+                    session_path.stat().st_size if session_path.exists() else 0,
+                )
             except Exception as login_err:
                 logger.warning(
-                    f"Automated login failed on startup: {login_err}. "
-                    "Run `python3 create_session.py` to authenticate manually."
+                    "Automated login failed on startup: %s. "
+                    "Run `python3 create_session.py` to authenticate manually.",
+                    login_err,
+                    exc_info=True,
                 )
         else:
             logger.warning(
-                f"Session file '{SESSION_FILE}' not found and credentials not set in .env. "
-                "Run `python3 create_session.py` to authenticate."
+                "Session file '%s' not found and credentials are incomplete "
+                "(email=%s, password=%s). Run `python3 create_session.py` to authenticate.",
+                session_path,
+                bool(email),
+                bool(password),
             )
 
     yield  # Server runs here

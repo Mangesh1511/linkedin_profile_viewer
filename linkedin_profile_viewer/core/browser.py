@@ -24,6 +24,7 @@ class BrowserManager:
 
     async def start(self) -> None:
         """Start Playwright and launch Chromium browser."""
+        logger.info("Starting Playwright browser (headless=%s)", self.headless)
         if not self._browser:
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(
@@ -42,16 +43,25 @@ class BrowserManager:
                 timezone_id='America/New_York'
             )
             logger.info("Playwright browser instance started successfully.")
+        else:
+            logger.info("Playwright browser was already running; reusing existing instance")
 
     async def load_session(self, session_path: str) -> bool:
         """Load storage state / cookies from session file into context."""
         if not os.path.exists(session_path):
-            logger.warning(f"Session file not found: {session_path}")
+            logger.warning("Session file not found: %s", os.path.abspath(session_path))
             return False
 
         try:
+            logger.info("Reading browser session state from: %s", os.path.abspath(session_path))
             with open(session_path, 'r', encoding='utf-8') as f:
                 storage_state = json.load(f)
+
+            logger.info(
+                "Session JSON parsed successfully (cookies=%d, origins=%d)",
+                len(storage_state.get('cookies', [])),
+                len(storage_state.get('origins', [])),
+            )
 
             if self._browser:
                 # Re-create context with loaded storage state
@@ -65,8 +75,9 @@ class BrowserManager:
                 )
                 logger.info(f"Loaded browser session from: {session_path}")
                 return True
+            logger.error("Cannot load session because the browser is not running")
         except Exception as e:
-            logger.error(f"Failed to load browser session: {e}")
+            logger.error("Failed to load browser session: %s", e, exc_info=True)
         return False
 
     async def save_session(self, session_path: str) -> None:
@@ -74,11 +85,23 @@ class BrowserManager:
         if self.context:
             try:
                 state = await self.context.storage_state()
+                logger.info(
+                    "Collected browser session state (cookies=%d, origins=%d); writing to %s",
+                    len(state.get('cookies', [])),
+                    len(state.get('origins', [])),
+                    os.path.abspath(session_path),
+                )
                 with open(session_path, 'w', encoding='utf-8') as f:
                     json.dump(state, f, indent=2)
-                logger.info(f"Saved browser session state to: {session_path}")
+                logger.info(
+                    "Saved browser session state to: %s (size_bytes=%d)",
+                    os.path.abspath(session_path),
+                    os.path.getsize(session_path),
+                )
             except Exception as e:
-                logger.error(f"Failed to save browser session state: {e}")
+                logger.error("Failed to save browser session state: %s", e, exc_info=True)
+        else:
+            logger.error("Cannot save browser session because browser context is not available")
 
     async def close(self) -> None:
         """Close context, browser, and playwright instance."""
