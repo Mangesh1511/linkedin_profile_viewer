@@ -41,7 +41,17 @@ class BaseScraper:
                     json.dump(state, f, indent=2)
                 logger.info("💾 Saved authenticated session cookies to linkedin_session.json")
 
-            if target_url and "login" not in target_url:
+            # Clean target_url if it was redirected to authwall or login page
+            if target_url and any(k in target_url for k in ["login", "authwall", "checkpoint", "challenge"]):
+                import re
+                from urllib.parse import unquote
+                match = re.search(r"sessionRedirect=([^&]+)", target_url)
+                if match:
+                    target_url = unquote(match.group(1))
+                else:
+                    target_url = None
+
+            if target_url:
                 logger.info(f"Navigating back to target URL after login: {target_url}")
                 await self.page.goto(target_url, wait_until="domcontentloaded")
         except Exception as e:

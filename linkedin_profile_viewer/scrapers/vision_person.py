@@ -96,8 +96,10 @@ class VisionPersonScraper(BaseScraper):
         env_override = os.getenv("SAVE_SCREENSHOTS", "").lower()
         if env_override in ("false", "0", "no"):
             self.save_screenshots = False
+        elif env_override in ("true", "1", "yes"):
+            self.save_screenshots = True
         else:
-            self.save_screenshots = save_screenshots or True
+            self.save_screenshots = bool(save_screenshots)
         self.debug_dir = debug_dir
 
     def _save_debug_image(self, image_bytes: bytes, filename: str) -> None:
